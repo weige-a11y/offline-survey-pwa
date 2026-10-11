@@ -33,3 +33,21 @@ export function extendsHistory(local,incoming){
  if(local.id!==incoming.id)return false;
  return Object.entries(local.records).every(([id,r])=>{const rows=incoming.records[id]?.revisions||[];return rows.length>=r.revisions.length&&canonical(rows.slice(0,r.revisions.length))===canonical(r.revisions);});
 }
+// Only append measurement-only bindings; every existing fact must be identical.
+export function additivePackage(a,b){
+ if(!a.workbench||!b.workbench||b.geometry.nodes.length<=a.geometry.nodes.length||b.measurements.length<=a.measurements.length)return false;
+ const nodes=b.geometry.nodes.slice(a.geometry.nodes.length),measurements=b.measurements.slice(a.measurements.length);
+ if(nodes.some(n=>!n.measurementOnly)||measurements.some(e=>e.kind!=='pipe-location'||!e.measurable||e.historical||e.nodes.some(n=>n<a.geometry.nodes.length)))return false;
+ const clean=p=>{const c=structuredClone(p);delete c.integrity;delete c.upgrade;delete c.packageId;delete c.baseSha;return c;},old=clean(a),next=clean(b);
+ next.geometry.nodes=next.geometry.nodes.slice(0,a.geometry.nodes.length);
+ next.measurements=next.measurements.slice(0,a.measurements.length);
+ next.workbench.model.nodes=next.workbench.model.nodes.slice(0,a.workbench.model.nodes.length);
+ next.workbench.model.edges=next.workbench.model.edges.slice(0,a.workbench.model.edges.length);
+ next.workbench.points=next.workbench.points.slice(0,a.workbench.points.length);
+ return canonical(old)===canonical(next);
+}
+export function upgradeSession(prior,p){
+ const a=prior.package,from=p.upgrade?.from;
+ if(!from||from.packageId!==a.packageId||from.baseSha!==a.baseSha||from.integrity!==a.integrity.value||!additivePackage(a,p))throw Error('新增测量包与本机原户型不一致，原记录未覆盖；请先导出本机 JSON。');
+ return {...prior,package:p,batch:{...prior.batch,packageId:p.packageId,baseSha:p.baseSha}};
+}
