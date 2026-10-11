@@ -1,4 +1,4 @@
-const VERSION='survey-program-838c78c2c1f103f7';
+const VERSION='survey-program-f698e77ad6b86de9';
 const ASSETS=['./','./index.html','./app.mjs','./core.mjs','./storage.mjs','./workbench-state.mjs','./desktop-workbench.mjs','./edge-label-layout.mjs','./desktop.css','./style.css','./manifest.webmanifest','./icon.svg','./icon-180.png','./icon-192.png','./icon-512.png'];
 const urls=ASSETS.map(s=>new URL(s,self.registration.scope).href);
 self.addEventListener('install',event=>event.waitUntil((async()=>{const cache=await caches.open(VERSION);await cache.addAll(urls);if(!(await Promise.all(urls.map(u=>cache.match(u)))).every(Boolean))throw Error('Incomplete program cache');await self.skipWaiting();})()));

@@ -28,6 +28,7 @@ export async function validatePackage(p){
  const seen=new Set();for(const e of p.measurements){if(!id(e.id)||seen.has(e.id)||!id(e.name)||!id(e.room)||typeof e.measurable!=='boolean'||!Array.isArray(e.nodes)||e.nodes.length!==2||e.nodes.some(n=>!g.nodes[n])||!eq(e.endpointIds,e.nodes.map(n=>g.nodes[n].id))||!eq(e.endpoints,e.nodes.map(n=>g.nodes[n].p))||typeof e.semantic!=='string'||typeof e.endpointSemantic!=='string')fail('测量ID或A/B绑定失效：'+e.id);seen.add(e.id);}
  if(p.workbench){const w=p.workbench;if(!eq(w.points,g.nodes.map(n=>n.p))||!eq(w.model?.nodes?.map(n=>n.id),g.nodes.map(n=>n.id)))fail('电脑版显示节点与固定底图不一致。');for(const e of w.model.edges){const m=p.measurements.find(m=>m.id===e.id);if(!m||!eq(e.nodes,m.nodes)||e.semantic!==m.semantic)fail('电脑版数字端点绑定失效：'+e.id);}const shape=e=>Object.fromEntries(Object.entries(e).filter(([k])=>['id','type','layer','nodes','displayNodes','hiddenInWallReference','closed','radius','startAngle','endAngle','bulges'].includes(k)));if(!eq(w.model.entities.map(shape),g.entities))fail('电脑版图元与固定底图不一致。');}
  const markers=p.workbench?.model.surveyMarkers||[],markerIds=new Set();if(!Array.isArray(markers)||markers.length>10000)fail('测量圆圈范围无效。');
+ for(const m of p.measurements.filter(m=>m.supersededBy)){const e=p.workbench?.model.edges.find(e=>e.id===m.id),target=p.measurements.find(e=>e.id===m.supersededBy),replacement=p.workbench?.model.edges.find(e=>e.id===m.supersededBy);if(m.kind!=='pipe-location'||m.measurable||m.nodes.some(n=>!g.nodes[n].measurementOnly)||!e?.referenceOnly||e.supersededBy!==m.supersededBy||target?.kind!=='pipe-location'||!target.measurable||replacement?.replaces!==m.id)fail('旧定位线与替代项绑定失效。');}
  for(const m of markers){if(!id(m.id)||markerIds.has(m.id)||m.kind!=='pipe-location'||m.positionBasis!=='user-marked-schematic'||!Number.isInteger(m.node)||!g.nodes[m.node]?.measurementOnly||!(m.symbolRadiusMm>0)||!Number.isFinite(m.symbolRadiusMm)||(m.diameterMm!==null&&(!(m.diameterMm>0)||!Number.isFinite(m.diameterMm)))||!Array.isArray(m.measurementIds)||m.measurementIds.length!==2||new Set(m.measurementIds).size!==2)fail('测量圆圈绑定失效。');markerIds.add(m.id);for(const measureId of m.measurementIds){const e=p.workbench.model.edges.find(e=>e.id===measureId);if(!e||e.markerId!==m.id||e.measurementBinding?.centerNodeId!==g.nodes[m.node].id)fail('测量圆圈与定位线不一致。');}}
  if(p.rooms.some(r=>!id(r.name)||!point(r.p)))fail('房间信息无效。');return p;
 }
@@ -49,7 +50,7 @@ export function history(p,b,action){validateBatch(p,b);const next=structuredClon
 export function validateBatch(p,b){
  if(!id(b?.id)||!id(b?.name)||!time(b.createdAt)||b.packageId!==p.packageId||b.baseSha!==p.baseSha||!b.records||Array.isArray(b.records)||typeof b.records!=='object')fail('复测批次无效。');
  const ids=new Set();for(const [k,r] of Object.entries(b.records)){
-  const e=p.measurements.find(e=>e.id===k&&e.measurable);
+  const e=p.measurements.find(e=>e.id===k&&(e.measurable||e.supersededBy));
   if(!e||r.id!==k||!eq(r.endpointIds,e.endpointIds)||r.endpointSemantic!==e.endpointSemantic||r.semantic!==e.semantic||!Array.isArray(r.revisions)||!r.revisions.length||r.revisions.length>10000)fail('本轮记录端点或历史无效：'+k);
   let last=0;for(const rev of r.revisions){const v=parseValue(rev.valueText);if(v.value!==rev.value||v.decimalPlaces!==rev.decimalPlaces||!time(rev.recordedAt)||!id(rev.revisionId)||ids.has(rev.revisionId)||Date.parse(rev.recordedAt)<last)fail('修改历史/数值精度无效：'+k);last=Date.parse(rev.recordedAt);ids.add(rev.revisionId);}
  }
@@ -71,7 +72,7 @@ export async function validateExport(v,expected){
  validateBatch(p,v.batch);const edges=p.measurements.filter(e=>e.measurable&&(v.scope.type==='whole-house'||e.room===v.scope.room));
  if(!edges.length||!Array.isArray(v.measurements)||v.measurements.length!==edges.length)fail('缺少未复测记录，导出不完整。');
  const seen=new Set();for(const r of v.measurements){const e=edges.find(e=>e.id===r.id);if(!e||seen.has(r.id)||!eq(r.endpointIds,e.endpointIds)||!eq(r.endpoints,e.endpoints)||r.semantic!==e.semantic||r.endpointSemantic!==e.endpointSemantic||r.room!==e.room||!eq(r.current,active(v.batch,e.id))||!eq(r.history,v.batch.records[e.id]?.revisions||[])||r.status!==(active(v.batch,e.id)?'measured':'pending'))fail('导出端点/记录不完整：'+r.id);seen.add(r.id);}
- if(Object.keys(v.batch.records).some(k=>!seen.has(k)))fail('导出批次含范围外记录。');return v;
+ if(Object.keys(v.batch.records).some(k=>!seen.has(k)&&!(v.scope.type==='whole-house'&&p.measurements.some(e=>e.id===k&&e.supersededBy))))fail('导出批次含范围外记录。');return v;
 }
 export function screen(p,c,w,h){return [w/2+(p[0]-c.x)*c.scale,h/2-(p[1]-c.y)*c.scale];}
 export function world(p,c,w,h){return [c.x+(p[0]-w/2)/c.scale,c.y-(p[1]-h/2)/c.scale];}
