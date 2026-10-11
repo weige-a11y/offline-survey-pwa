@@ -38,16 +38,19 @@ export function additivePackage(a,b){
  if(!a.workbench||!b.workbench||b.geometry.nodes.length<=a.geometry.nodes.length||b.measurements.length<=a.measurements.length)return false;
  const nodes=b.geometry.nodes.slice(a.geometry.nodes.length),measurements=b.measurements.slice(a.measurements.length);
  if(nodes.some(n=>!n.measurementOnly)||measurements.some(e=>e.kind!=='pipe-location'||!e.measurable||e.historical||e.nodes.some(n=>n<a.geometry.nodes.length)))return false;
+ const before=a.workbench.model.surveyMarkers||[],markers=b.workbench.model.surveyMarkers||[];
+ if(canonical(markers.slice(0,before.length))!==canonical(before)||markers.length<before.length||markers.slice(before.length).some(m=>m.kind!=='pipe-location'||m.positionBasis!=='user-marked-schematic'||m.node<a.geometry.nodes.length))return false;
  const clean=p=>{const c=structuredClone(p);delete c.integrity;delete c.upgrade;delete c.packageId;delete c.baseSha;return c;},old=clean(a),next=clean(b);
  next.geometry.nodes=next.geometry.nodes.slice(0,a.geometry.nodes.length);
  next.measurements=next.measurements.slice(0,a.measurements.length);
  next.workbench.model.nodes=next.workbench.model.nodes.slice(0,a.workbench.model.nodes.length);
  next.workbench.model.edges=next.workbench.model.edges.slice(0,a.workbench.model.edges.length);
  next.workbench.points=next.workbench.points.slice(0,a.workbench.points.length);
+ if(a.workbench.model.surveyMarkers)next.workbench.model.surveyMarkers=markers.slice(0,before.length);else delete next.workbench.model.surveyMarkers;
  return canonical(old)===canonical(next);
 }
 export function upgradeSession(prior,p){
- const a=prior.package,from=p.upgrade?.from;
- if(!from||from.packageId!==a.packageId||from.baseSha!==a.baseSha||from.integrity!==a.integrity.value||!additivePackage(a,p))throw Error('新增测量包与本机原户型不一致，原记录未覆盖；请先导出本机 JSON。');
+ const a=prior.package,from=[p.upgrade?.from,...(p.upgrade?.ancestors||[])].find(f=>f?.packageId===a.packageId&&f.baseSha===a.baseSha&&f.integrity===a.integrity.value);
+ if(!from||!additivePackage(a,p))throw Error('新增测量包与本机原户型不一致，原记录未覆盖；请先导出本机 JSON。');
  return {...prior,package:p,batch:{...prior.batch,packageId:p.packageId,baseSha:p.baseSha}};
 }
