@@ -37,7 +37,7 @@ export function extendsHistory(local,incoming){
 export function additivePackage(a,b){
  if(!a.workbench||!b.workbench||b.geometry.nodes.length<=a.geometry.nodes.length||b.measurements.length<=a.measurements.length)return false;
  const nodes=b.geometry.nodes.slice(a.geometry.nodes.length),measurements=b.measurements.slice(a.measurements.length);
- if(nodes.some(n=>!n.measurementOnly)||measurements.some(e=>e.kind!=='pipe-location'||(!e.measurable&&!e.supersededBy)||e.historical||e.nodes.some(n=>n<a.geometry.nodes.length)))return false;
+ if(nodes.some(n=>!n.measurementOnly)||measurements.some(e=>!['pipe-location','frame-gap'].includes(e.kind)||(!e.measurable&&!e.supersededBy)||e.historical||e.nodes.some(n=>n<a.geometry.nodes.length)))return false;
  const before=a.workbench.model.surveyMarkers||[],markers=b.workbench.model.surveyMarkers||[];
  if(markers.length<before.length||markers.slice(before.length).some(m=>m.kind!=='pipe-location'||m.positionBasis!=='user-marked-schematic'||m.node<a.geometry.nodes.length))return false;
  const clean=p=>{const c=structuredClone(p);delete c.integrity;delete c.upgrade;delete c.packageId;delete c.baseSha;return c;},old=clean(a),next=clean(b);
