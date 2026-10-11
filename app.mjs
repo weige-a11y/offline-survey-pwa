@@ -1,10 +1,10 @@
 import {validatePackage,newBatch,record,active,history,validateBatch,exportSurvey,validateExport} from './core.mjs';
-import {openStore} from './storage.mjs';import {projectState,compatiblePackages,extendsHistory} from './workbench-state.mjs';import {installEdgeEditor} from './desktop-workbench.mjs';
+import {openStore} from './storage.mjs';import {projectState,isConfirmed,compatiblePackages,extendsHistory} from './workbench-state.mjs';import {installEdgeEditor} from './desktop-workbench.mjs';
 const $=id=>document.getElementById(id);let store,session=null,installed=false,importBusy=false,prepared=null,viewTimer,exportTicket=0;
 const message=(text,bad=false)=>{for(const id of ['message','options-message','entry-error']){const e=$(id);if(e){e.textContent=text;e.classList.toggle('error',bad);}}};
 const show=id=>{for(const d of document.querySelectorAll('dialog[open]'))d.close();$(id).showModal();};for(const b of document.querySelectorAll('[data-close]'))b.onclick=()=>b.closest('dialog').close();
 const response=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json'}});
-const io={menu:()=>show('options'),notify:message,isMeasurable:id=>session?.package.measurements.some(e=>e.id===id&&e.measurable),hasNewRecord:id=>!!active(session.batch,id),
+const io={menu:()=>show('options'),notify:message,isMeasurable:id=>session?.package.measurements.some(e=>e.id===id&&e.measurable),isConfirmed:id=>isConfirmed(session,id),hasNewRecord:id=>!!active(session.batch,id),
  async fetch(url,options={}){
   if(!session)return response({message:'请先导入私人户型 JSON。'},400);
   if(!options.method){session=await store.load(session.key);return response(projectState(session));}
